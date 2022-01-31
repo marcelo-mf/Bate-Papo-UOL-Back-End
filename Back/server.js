@@ -4,6 +4,7 @@ import joi from 'joi';
 import dayjs from 'dayjs';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 const server = express();
@@ -55,7 +56,6 @@ server.post("/participants", async (req, res) => {
         mongoClient.close(); 
 
         res.send(req.body);
-        console.log('sla');
         
     } catch{
         res.sendStatus(500);
@@ -184,10 +184,8 @@ server.post("/status", async (req, res) => {
         mongoClient.close(); 
         res.sendStatus(200);
 
-    } catch (e) {
-
-        res.status(500).send(e);
-
+    } catch{
+        res.status(500);
     }
 })
 
@@ -195,25 +193,35 @@ async function removeInativeUsers() {
 
     try{
 
+        const hora = dayjs().format('HH:mm:ss');
+
         const mongoClient = new MongoClient(process.env.MONGO_URI);
 
         await mongoClient.connect();
 
         const dbBPUOL = mongoClient.db('BPUOL');
-        const participantsCollection = dbBPUOL.collection('participants');        
+        const participantsCollection = dbBPUOL.collection('participants'); 
+        const messagesCollection = dbBPUOL.collection('messages');       
         const participants = await participantsCollection.find({}).toArray();
 
-        const InativeParticipants = participants.filter( participant => (Date.now() - participant.lastStatus) > 10);
-        
-        mongoClient.close(); 
+        const inativeParticipants = participants.filter( participant => (Date.now() - participant.lastStatus) > 10);
 
-    } catch {
+        inativeParticipants.map(async inativeP => {
 
-        res.sendStatus(500);
+            const messageSaida = {from: inativeP.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: hora}; 
+                
+            await participantsCollection.deleteOne({name: inativeP.name});
+            await messagesCollection.insertOne(messageSaida);  
+                
+        });
+            
+        mongoClient.close();  
 
+    } catch(error) {
+        console.log(error);
     }
 }
 
-//setInterval(15000, removeInativeUsers);
+setInterval(removeInativeUsers, 15000);
 
 server.listen(5000);
