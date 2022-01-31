@@ -160,7 +160,7 @@ server.get("/messages", async (req, res) => {
 
 server.post("/status", async (req, res) => {
 
-    const user = 'cebola';
+    const user = req.headers.user;
 
     try{
 
@@ -179,22 +179,41 @@ server.post("/status", async (req, res) => {
             return;
         }
 
-        await participantsCollection.uptadeOne({name: user},{$set: {lastStatus: Date.now()}});
+        await participantsCollection.updateOne({name: req.headers.user},{$set: {lastStatus: Date.now()}});
         
         mongoClient.close(); 
         res.sendStatus(200);
+
+    } catch (e) {
+
+        res.status(500).send(e);
+
+    }
+})
+
+async function removeInativeUsers() {
+
+    try{
+
+        const mongoClient = new MongoClient(process.env.MONGO_URI);
+
+        await mongoClient.connect();
+
+        const dbBPUOL = mongoClient.db('BPUOL');
+        const participantsCollection = dbBPUOL.collection('participants');        
+        const participants = await participantsCollection.find({}).toArray();
+
+        const InativeParticipants = participants.filter( participant => (Date.now() - participant.lastStatus) > 10);
+        
+        mongoClient.close(); 
 
     } catch {
 
         res.sendStatus(500);
 
     }
-})
-
-function removeInativeUsers() {
-dfsfd
 }
 
-//setInterval(15000, )
+//setInterval(15000, removeInativeUsers);
 
 server.listen(5000);
